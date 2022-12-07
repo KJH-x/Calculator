@@ -28,7 +28,7 @@ def isfloat(expression: str) -> bool:
 
 
 def isfunction(expression: str) -> bool:
-    for br in bracket:
+    for br in Lbracket:
         expression = expression.replace(br, "")
     return expression.isalpha()
 
