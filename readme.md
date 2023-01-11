@@ -1,18 +1,16 @@
 ## Calculator
 ### ✔ calculation:
-- float addition
+- float Arithmetic, power, mod, any bracket(s)
+- integer combinations, permutations
 
 ### ✔ operation:
 - Continuous operation
 - Undo(1)
 
 ### ❌：
-- Float multiplication and division
 - Complex series
 - Funtions:
     - BASIC
-        - \*A/P\* \*C\*
-        - POWER (exp(),\*^\*)
         - floor/ceiling
     - Statistic
         - polyfit
