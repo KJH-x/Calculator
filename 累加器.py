@@ -30,6 +30,11 @@ def isfloat(expression: str) -> bool:
         return False
 
 
+def iscomplex(expression: str) -> bool:
+    # new
+    return False
+
+
 def isfunction(expression: str) -> bool:
     for br in Lbracket:
         expression = expression.replace(br, "")
@@ -89,7 +94,8 @@ def convert(expression: str) -> list:
             if expression[left] == '!':
                 # 阶乘立刻计算
                 # 后续可能需要改进，这将导致能约分的出现故障
-                cache.append(math.factorial(cache.pop()))
+                # 似乎不应该立刻计算，再考虑一下
+                cache.append(math.factorial(int(cache.pop())))
             last_type = "number"
             left += 1
             continue
@@ -150,8 +156,44 @@ def convert(expression: str) -> list:
 
 
 def calculate(cache: list) -> float:
-    # working
-    return 0
+    maxlevel = max([x[1] for x in cache if isinstance(x, list)])
+
+    i = 0
+    while len(cache) != 1:
+        try:
+            x = cache[i]
+            print(cache)
+            if isinstance(x, list) and x[1] == maxlevel:
+                if x[0] == '+':
+                    cache[i+1] = cache[i-1]+cache[i+1]
+                elif x[0] == '-':
+                    cache[i+1] = cache[i-1]-cache[i+1]
+                elif x[0] == '*':
+                    cache[i+1] = cache[i-1]*cache[i+1]
+                elif x[0] == '/':
+                    cache[i+1] = cache[i-1]/cache[i+1]
+                elif x[0] == '%':
+                    cache[i+1] = cache[i-1] % cache[i+1]
+                elif x[0] == '^':
+                    cache[i+1] = pow(cache[i-1], cache[i+1])
+                elif x[0] == 'A' or x[0] == 'P':
+                    cache[i+1] = math.perm(int(cache[i-1]), int(cache[i+1]))
+                elif x[0] == 'C':
+                    cache[i+1] = math.comb(int(cache[i-1]), int(cache[i+1]))
+                else:
+                    print(f"!!!Exception,unsupport operator {x[0]}")
+                cache.pop(i-1)
+                cache.pop(i-1)
+            else:
+                i += 1
+        except IndexError:
+            # This exception indicates a round have finished
+            i = 0
+            maxlevel -= 1
+        if len(cache) == 1:
+            break
+    # print(cache)
+    return cache[0]
 
 
 def solve(cache: list) -> float:
@@ -226,7 +268,7 @@ if __name__ == '__main__':
                 print("==>cache:")
                 output(cache)
                 if expression.count("=") == 0:
-                    calculate(cache)
+                    print(calculate(cache))
                 else:
                     solve(cache)
 
