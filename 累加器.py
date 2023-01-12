@@ -1,7 +1,8 @@
 # encoding=utf-8
+# python_version>=3.10
 '''
 Filename : 累加器.py
-Datatime : 2022/12/07 
+Datatime : 2022/12/07
 Author :KJH-x
 '''
 
@@ -155,45 +156,97 @@ def convert(expression: str) -> list:
     return cache
 
 
-def calculate(cache: list) -> float:
-    maxlevel = max([x[1] for x in cache if isinstance(x, list)])
+def calculate(slice: list) -> float:
+    try:
+        maxlevel = max(
+            [x[1] for x in slice
+             if (isinstance(x, list) and x[0] in midclass)]
+        )
 
-    i = 0
-    while len(cache) != 1:
-        try:
-            x = cache[i]
-            print(cache)
-            if isinstance(x, list) and x[1] == maxlevel:
-                if x[0] == '+':
-                    cache[i+1] = cache[i-1]+cache[i+1]
-                elif x[0] == '-':
-                    cache[i+1] = cache[i-1]-cache[i+1]
-                elif x[0] == '*':
-                    cache[i+1] = cache[i-1]*cache[i+1]
-                elif x[0] == '/':
-                    cache[i+1] = cache[i-1]/cache[i+1]
-                elif x[0] == '%':
-                    cache[i+1] = cache[i-1] % cache[i+1]
-                elif x[0] == '^':
-                    cache[i+1] = pow(cache[i-1], cache[i+1])
-                elif x[0] == 'A' or x[0] == 'P':
-                    cache[i+1] = math.perm(int(cache[i-1]), int(cache[i+1]))
-                elif x[0] == 'C':
-                    cache[i+1] = math.comb(int(cache[i-1]), int(cache[i+1]))
+        i = 0
+        while len(slice) != 1:
+            try:
+                x = slice[i]
+                print(slice)
+                if isinstance(x, list) and x[1] == maxlevel and x[0] in midclass:
+                    match x[0]:
+                        case '+':
+                            slice[i+1] = slice[i-1] + slice[i+1]
+                        case '-':
+                            slice[i+1] = slice[i-1] - slice[i+1]
+                        case '*':
+                            slice[i+1] = slice[i-1] * slice[i+1]
+                        case '/':
+                            slice[i+1] = slice[i-1] / slice[i+1]
+                        case '%':
+                            slice[i+1] = slice[i -
+                                               1] % slice[i+1]
+                        case '^':
+                            slice[i+1] = pow(slice[i-1],
+                                             slice[i+1])
+                        case 'A', 'P':
+                            slice[i+1] = math.perm(int(slice[i-1]),
+                                                   int(slice[i+1]))
+                        case 'C':
+                            slice[i+1] = math.comb(int(slice[i-1]),
+                                                   int(slice[i+1]))
+                        case _:
+                            print(f"!!!Exception,unsupport operator {x[0]}")
+                    slice.pop(i-1)
+                    slice.pop(i-1)
                 else:
-                    print(f"!!!Exception,unsupport operator {x[0]}")
-                cache.pop(i-1)
-                cache.pop(i-1)
+                    i += 1
+            except IndexError:
+                # This exception indicates a round have finished
+                i = 0
+                maxlevel -= 1
+            if len(slice) == 1:
+                break
+        # print(cache)
+    except ValueError:
+        if len(slice) == 1 and isinstance(slice[0], float):
+            return slice[0]
+        else:
+            raise TypeError(slice)
+    if isinstance(slice[0], float):
+        return slice[0]
+    else:
+        raise TypeError
+
+
+def calculation_breakdown(cache: list[float | list]) -> list:
+    try:
+        maxbracket = max(
+            [x[1] for x in cache
+             if (isinstance(x, list) and x[0] in Lbracket)]
+        )
+        left = right = i = 0
+        while maxbracket != -1:
+            x = cache[i]
+            if isinstance(x, list) and x[1] == maxbracket:
+                if x[0] in Lbracket:
+                    left = i
+                elif x[0] in Rbracket:
+                    right = i
+                    ans = calculate(cache[left+1: right])
+                    for index in range(right-left):
+                        cache.pop(left)
+                    cache[left] = ans
+                    maxbracket = max(
+                        [x[1] for x in cache
+                         if (isinstance(x, list) and x[0] in Lbracket)]
+                    )
+                    left = right = 0
+                    i = -1
+                else:
+                    pass
             else:
-                i += 1
-        except IndexError:
-            # This exception indicates a round have finished
-            i = 0
-            maxlevel -= 1
-        if len(cache) == 1:
-            break
-    # print(cache)
-    return cache[0]
+                pass
+            i += 1
+        calculate(cache)
+    except ValueError:
+        calculate(cache)
+    return cache
 
 
 def solve(cache: list) -> float:
@@ -231,6 +284,8 @@ level = [
     ["^"],
     ["A", "P", "C"],
     ['(', ')', '[', ']', '{', '}', '（', '）', '【', '】']
+
+
 ]
 
 
@@ -250,13 +305,13 @@ if __name__ == '__main__':
             expression = input("Basic> ").strip().replace(" ", "")
             # Assume that the mode command should act like:
             # MODE:<><mode_name><space|tab><input|none>
-            if expression[0:5].lower() == "mode:":
+            if expression[0: 5].lower() == "mode:":
                 i = 0
                 for i in range(5, len(expression)):
                     if expression[i] in [' ', '\t']:
                         i -= 1
                         break
-                mode = expression[5:i+1]
+                mode = expression[5: i+1]
                 if i+1 == len(expression):
                     special_mode(mode, "")
                 else:
@@ -268,7 +323,7 @@ if __name__ == '__main__':
                 print("==>cache:")
                 output(cache)
                 if expression.count("=") == 0:
-                    print(calculate(cache))
+                    print(calculation_breakdown(cache))
                 else:
                     solve(cache)
 
