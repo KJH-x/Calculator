@@ -1,3 +1,8 @@
+## Developing
+- function recognition 
+- multi-parameter handling 
+- more input format
+
 ## Calculator
 ### ✔ calculation:
 - float Arithmetic, power, mod, any bracket(s)
@@ -11,7 +16,7 @@
 - Complex series
 - Funtions:
     - BASIC
-        - floor/ceiling
+        - log/ln floor/ceiling abs random ...
     - Statistic
         - polyfit
         - N(0,1)
@@ -23,3 +28,8 @@
 - Integral
 - Devine
 
+## More information 
+
+Develop task: [Task.md](https://github.com/KJH-x/calculator/blob/main/Tasks.md)
+
+Thank: ...
