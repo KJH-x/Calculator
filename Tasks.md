@@ -1,0 +1,3 @@
+- Use regex to devide multi-parameter function.
+- Expand function is float to support scientific notation.
+- refined output.
