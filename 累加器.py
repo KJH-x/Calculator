@@ -10,9 +10,44 @@ Author :KJH-x
 from traceback import print_exc
 import math
 import sys
+import re
+import copy
+
+
+class WrongExpression(SyntaxError):
+    """Wrong Input Syntax
+    """
+    pass
+
+
+class UnreachableError(SyntaxError):
+    """Branch that should not be reached
+    """
+    pass
+
+
+def ShowStep(content: list):
+    """Show calculate step
+
+    Args:
+        content (list): cache sequence
+    """
+    isolateContent = copy.deepcopy(content)
+    for x in range(len(isolateContent)):
+        if isinstance(isolateContent[x], list):
+            isolateContent[x] = str(isolateContent[x][0])
+        else:
+            pass
+    print('\t'+re.sub("[\\[\\]\\,\\']", '', f"{isolateContent}"))
+    return
 
 
 def output(result: ...) -> None:
+    """[Deprecated] Print someting formatted
+
+    Args:
+        result (str or any): things to print
+    """
     # 此函数功能目前不佳，在好的替代方案发现之前
     # 新增的输出内容，直接用print
     if type(result) == "<class 'str'>":
@@ -24,30 +59,60 @@ def output(result: ...) -> None:
     history.append(result)
 
 
+def ParameterCounter(sequence: list) -> int:
+    """Count the parameter in sequence by counting comma
+
+    Args:
+        sequence (list): sequence to count
+
+    Returns:
+        int: number of parameter(s) but not comma
+    """
+    count = 1
+    for i in sequence:
+        if i == ',':
+            count += 1
+    return count
+
+
 def isfloat(expression: str) -> bool:
-    if expression.count(".") < 2:
+    """Judge if the expression is an acceptble float number
+    """
+    if expression.count('.') < 2 and expression.count('e') < 2:
         return expression.replace(".", "").isdigit()
     else:
         return False
 
 
 def iscomplex(expression: str) -> bool:
+    """Judge if the expression is an acceptble complex number
+    """
     # new
     return False
 
 
 def isfunction(expression: str) -> bool:
-    for br in Lbracket:
-        expression = expression.replace(br, "")
+    """Judge if the expression is an acceptble function
+    """
+    expression = re.sub('[(]', "", expression)
     return expression.isalpha()
 
 
 def assign_class(operator) -> list:
+    """assign class for opertor
+
+    Raises:
+        UnreachableError: opertor not support
+
+    Returns:
+        list: [opertor, class]
+    """
     for i in range(len(level)):
         if operator in level[i]:
             return [operator, i]
-    print(f"Unreachable!,with input={operator}")
-    raise ValueError
+    raise UnreachableError(
+        f"Unknown opertor: {operator}"
+    )
 
 
 def flash(command='part') -> None:
@@ -118,32 +183,33 @@ def convert(expression: str) -> list:
                 else:
                     right -= 1
                     break
-            if function[0][-1] not in Lbracket:
+            if function[0][-1] != '(':
                 print(f"[Warn] {function} is not a function, skipped")
 
             # 记录的时候记录函数名称
             cache.append(function)
-            last_type = "function"
+            last_type = function
             left = right
             bracketlevel += 1
             continue
 
-        elif expression[left] in Lbracket:
+        elif expression[left] == '(':
             # 遇到左侧等号，处理后加一级
             cache.append([str(expression)[left], bracketlevel])
             left += 1
             bracketlevel += 1
             continue
 
-        elif expression[left] in Rbracket:
+        elif expression[left] == ')':
             # 遇到右侧等号，处理前减一级
             bracketlevel -= 1
             cache.append([str(expression)[left], bracketlevel])
             left += 1
             continue
 
-        elif expression[left] in [",", "，"]:
-            # 分隔符在结构中已经被不同位置的数字等效，故跳过
+        elif expression[left] == ',':
+            # 多个参数不好处理，由拆分函数执行任务分配，逗号照吃
+            cache.append(',')
             left += 1
             continue
 
@@ -153,21 +219,26 @@ def convert(expression: str) -> list:
 
     if bracketlevel != 0:
         print("\n\t[ERROR] Bracket not closed!\n")
+        # 补足右括号
+        for i in range(bracketlevel):
+            bracketlevel -= 1
+            cache.append([')', bracketlevel])
     return cache
 
 
 def calculate(slice: list) -> float:
+    if len(slice) == 1 and isinstance(slice[0], float):
+        return slice[0]
     try:
         maxlevel = max(
             [x[1] for x in slice
              if (isinstance(x, list) and x[0] in midclass)]
         )
-
         i = 0
         while len(slice) != 1:
             try:
                 x = slice[i]
-                print(slice)
+
                 if isinstance(x, list) and x[1] == maxlevel and x[0] in midclass:
                     match x[0]:
                         case '+':
@@ -191,7 +262,9 @@ def calculate(slice: list) -> float:
                             slice[i+1] = math.comb(int(slice[i-1]),
                                                    int(slice[i+1]))
                         case _:
-                            print(f"!!!Exception,unsupport operator {x[0]}")
+                            raise UnreachableError(
+                                f"Unknown operator: {x[0]}"
+                            )
                     slice.pop(i-1)
                     slice.pop(i-1)
                 else:
@@ -200,53 +273,80 @@ def calculate(slice: list) -> float:
                 # This exception indicates a round have finished
                 i = 0
                 maxlevel -= 1
-            if len(slice) == 1:
-                break
-        # print(cache)
+                ShowStep(slice)
     except ValueError:
-        if len(slice) == 1 and isinstance(slice[0], float):
+        if len(slice) == 1 and (isinstance(slice[0], float) or isinstance(slice[0], int)):
             return slice[0]
         else:
-            raise TypeError(slice)
+            raise UnreachableError(
+                f"Unexpected sequence: {slice}"
+            )
     if isinstance(slice[0], float):
         return slice[0]
     else:
         raise TypeError
 
 
-def calculation_breakdown(cache: list[float | list]) -> list:
+def calculation_breakdown(cache: list[float | str | list]) -> str:
     try:
+        # ShowStep(cache)
         maxbracket = max(
             [x[1] for x in cache
-             if (isinstance(x, list) and x[0] in Lbracket)]
+             if (isinstance(x, list) and x[0] in Function)]
         )
-        left = right = i = 0
+        left, right, i = [0, 0, 0]
+        func = ""
         while maxbracket != -1:
             x = cache[i]
             if isinstance(x, list) and x[1] == maxbracket:
-                if x[0] in Lbracket:
+                if len(re.findall('[\\(]', x[0])) != 0:
                     left = i
-                elif x[0] in Rbracket:
+                    func = x[0]
+                elif x[0] == ')':
                     right = i
-                    ans = calculate(cache[left+1: right])
-                    for index in range(right-left):
+                    ans = 0
+                    match func:
+                        case 'log(':
+                            # in math module: 真数在前，底数在后
+                            # in use: 习惯底数跟在log后
+                            match ParameterCounter(cache[left+1:right]):
+                                case 1:
+                                    print(
+                                        "[Syntax Warning]: Function log() got only one parameter, taking 10 as its base")
+                                    log_a = [10]
+                                    log_N = cache[left+1:right]
+                                case 2:
+                                    log_a = cache[left+1:cache.index(',')]
+                                    log_N = cache[cache.index(',')+1:right]
+                                case _:
+                                    raise WrongExpression(
+                                        "[Syntax Error]: Too many parameter for log(a,b)")
+                            ans = math.log(calculate(log_N), calculate(log_a))
+                        case '(':
+                            ans = calculate(cache[left+1:right])
+                        case _:
+                            raise UnreachableError(
+                                f"Unknown function: {func}"
+                            )
+                    for index in range(right - left):
                         cache.pop(left)
                     cache[left] = ans
                     maxbracket = max(
                         [x[1] for x in cache
-                         if (isinstance(x, list) and x[0] in Lbracket)]
+                         if (isinstance(x, list) and x[0] in Function)]
                     )
-                    left = right = 0
+                    left, right = [0, 0]
                     i = -1
                 else:
                     pass
             else:
                 pass
             i += 1
-        calculate(cache)
     except ValueError:
-        calculate(cache)
-    return cache
+        # print_exc()
+        # Design for func max() to skip no-bracket sequence
+        pass
+    return str(cache[0])
 
 
 def solve(cache: list) -> float:
@@ -273,19 +373,24 @@ def special_mode(mode: str, expression: str) -> ...:
 
 midclass = ['+', '-', '*', '/', '%', '^', 'A', 'P', 'C',]
 rightclass = ['!']
-# changelog:[]will no longer be used as general brackets
-Lbracket = ['(', '{', '（', '【']
-Rbracket = [')', '}', '）',  '】']
-
+# changelog: []will no longer be used as general brackets
+# changelog: use regex to normalize all bracket
+# Lbracket = ['(']
+# Rbracket = [')']
+Function = [
+    'log(', 'ln(',
+    'floor(', 'ceil(', 'rand(', 'abs(',
+    'sin(', 'cos(', 'tan(', 'arcsin(', 'arccos(', 'arctan(',
+    '('
+]
+# why not consider the right bracket'('as a function
 level = [
-    ["nothing"],
-    ["+", "-"],
-    ["*", "/", "%"],
-    ["^"],
-    ["A", "P", "C"],
-    ['(', ')', '[', ']', '{', '}', '（', '）', '【', '】']
-
-
+    ['nothing'],
+    ['+', '-'],
+    ['*', '/', '%'],
+    ['^'],
+    ['A', 'P', 'C'],
+    ['(', ')']
 ]
 
 
@@ -301,8 +406,12 @@ if __name__ == '__main__':
     flash()
     while True:
         try:
-            # 输入，去除空格和前后空白符
-            expression = input("Basic> ").strip().replace(" ", "")
+            # 输入，去除空格和前后空白符，替换括号
+            expression = input("Basic> ")
+            expression = re.sub("[\\s]", '', expression)
+            expression = re.sub("[\\[\\{【（]", '(', expression)
+            expression = re.sub("[\\]\\}】）]", ')', expression)
+            expression = re.sub("[\\,\\;。，；]", ',', expression)
             # Assume that the mode command should act like:
             # MODE:<><mode_name><space|tab><input|none>
             if expression[0: 5].lower() == "mode:":
@@ -320,10 +429,10 @@ if __name__ == '__main__':
                 # 输入主程序，此步获得输入的完整结构信息
                 cache = convert(expression)
 
-                print("==>cache:")
-                output(cache)
+                print("==> Steps:")
+                ShowStep(cache)
                 if expression.count("=") == 0:
-                    print(calculation_breakdown(cache))
+                    print("The result is: "+calculation_breakdown(cache))
                 else:
                     solve(cache)
 
