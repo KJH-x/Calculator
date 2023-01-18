@@ -3,11 +3,16 @@
 - multi-parameter handling 
 - more input format
 
+## Usage
+Example:
+``` 1+2-3*4/5log(6,7^8(9+10))```
+
 ## Calculator
 ### ✔ calculation:
 - float Arithmetic, power, mod, any bracket(s)
 - integer combinations, permutations
-
+- Function available:
+- - log(a,b)
 ### ✔ operation:
 - Continuous operation
 - Undo(1)
