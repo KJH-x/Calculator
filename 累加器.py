@@ -7,22 +7,33 @@ Author :KJH-x
 '''
 
 
-from traceback import print_exc
 import math
 import sys
 import re
 import copy
 
 
-class WrongExpression(SyntaxError):
+class ExpressionError(SyntaxError):
     """Wrong Input Syntax
     """
+
+    def __init__(self, msg: str,):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
     pass
 
 
 class UnreachableError(SyntaxError):
     """Branch that should not be reached
     """
+
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
     pass
 
 
@@ -38,7 +49,12 @@ def ShowStep(content: list):
             isolateContent[x] = str(isolateContent[x][0])
         else:
             pass
-    print('\t'+re.sub("[\\[\\]\\,\\']", '', f"{isolateContent}"))
+    # isolateContent = re.sub(".0", '', f"{isolateContent}")
+    isolateContent = re.sub(
+        "[\\[\\]\\,\\'\\s]", '',
+        f"{isolateContent}".replace(".0", "")
+    ).replace(";", ",")
+    print(f'\t{isolateContent}')
     return
 
 
@@ -70,7 +86,7 @@ def ParameterCounter(sequence: list) -> int:
     """
     count = 1
     for i in sequence:
-        if i == ',':
+        if i == ';':
             count += 1
     return count
 
@@ -125,8 +141,16 @@ def flash(command='part') -> None:
 
 
 def convert(expression: str) -> list:
+    """Convert the input to comprehensive structure
+
+    Args:
+        expression (str): input string
+
+    Returns:
+        list: cache: made up of floats operator and function
+    """
     cache = []
-    left = right = 0
+    left, right = [0, 0]
     # 括号优先级计算，左括号加一级，右括号减一级
     # 输入的括号可不在形式上成对，只要左右个数一致即可
     bracketlevel = 0
@@ -140,7 +164,6 @@ def convert(expression: str) -> list:
     # 输入分析：
     while left < len(expression):
         function = ""
-        # print(f"==interval left={left} right={right}")
         if expression[left].isdigit():
             # 过程量记录
             # 调用isfloat函数，把小数吃掉
@@ -152,7 +175,7 @@ def convert(expression: str) -> list:
                     right -= 1
                     break
             cache.append(function)
-            last_type = "number"
+            # last_type = "number"
             left = right
             continue
 
@@ -162,7 +185,7 @@ def convert(expression: str) -> list:
                 # 后续可能需要改进，这将导致能约分的出现故障
                 # 似乎不应该立刻计算，再考虑一下
                 cache.append(math.factorial(int(cache.pop())))
-            last_type = "number"
+            # last_type = "number"
             left += 1
             continue
 
@@ -170,7 +193,7 @@ def convert(expression: str) -> list:
             # 记录二元运算符
             # 二元运算符应等待其后的运算结果
             cache.append(assign_class(expression[left]))
-            last_type = "operator"
+            # last_type = "operator"
             left += 1
             continue
 
@@ -184,16 +207,24 @@ def convert(expression: str) -> list:
                     right -= 1
                     break
             if function[0][-1] != '(':
-                print(f"[Warn] {function} is not a function, skipped")
-
-            # 记录的时候记录函数名称
-            cache.append(function)
-            last_type = function
-            left = right
-            bracketlevel += 1
+                print(
+                    f"\n[Warn] Skipping incomprehensible '{function[0]}'")
+                left += 1
+            else:
+                # 如果前面一个是数字，那么是缩写，把没有的乘号补上
+                if len(cache) > 0 and isinstance(cache[-1], float):
+                    cache.append(assign_class('*'))
+                # 记录的时候记录函数名称
+                cache.append(function)
+                # last_type = function
+                left = right
+                bracketlevel += 1
             continue
 
         elif expression[left] == '(':
+            # 如果前一个是数字，那么是缩写，把没有的乘号补上
+            if len(cache) > 0 and isinstance(cache[-1], float):
+                cache.append(assign_class('*'))
             # 遇到左侧等号，处理后加一级
             cache.append([str(expression)[left], bracketlevel])
             left += 1
@@ -207,18 +238,19 @@ def convert(expression: str) -> list:
             left += 1
             continue
 
-        elif expression[left] == ',':
+        elif expression[left] == ';':
             # 多个参数不好处理，由拆分函数执行任务分配，逗号照吃
-            cache.append(',')
+            cache.append(';')
             left += 1
             continue
 
         else:
-            print(f"[Warn] IN {left+1}, cannot resolve, skipped.")
-            left += 1
+            raise UnreachableError(
+                f"cannot reslove in cache:{left}\n\tcache:\n\t{cache}"
+            )
 
     if bracketlevel != 0:
-        print("\n\t[ERROR] Bracket not closed!\n")
+        print("\n[Warn] Bracket not closed!")
         # 补足右括号
         for i in range(bracketlevel):
             bracketlevel -= 1
@@ -248,7 +280,10 @@ def calculate(slice: list) -> float:
                         case '*':
                             slice[i+1] = slice[i-1] * slice[i+1]
                         case '/':
-                            slice[i+1] = slice[i-1] / slice[i+1]
+                            try:
+                                slice[i+1] = slice[i-1] / slice[i+1]
+                            except ZeroDivisionError:
+                                raise ExpressionError("Devide by 0")
                         case '%':
                             slice[i+1] = slice[i -
                                                1] % slice[i+1]
@@ -273,7 +308,7 @@ def calculate(slice: list) -> float:
                 # This exception indicates a round have finished
                 i = 0
                 maxlevel -= 1
-                ShowStep(slice)
+                # ShowStep(slice)
     except ValueError:
         if len(slice) == 1 and (isinstance(slice[0], float) or isinstance(slice[0], int)):
             return slice[0]
@@ -289,7 +324,7 @@ def calculate(slice: list) -> float:
 
 def calculation_breakdown(cache: list[float | str | list]) -> str:
     try:
-        # ShowStep(cache)
+
         maxbracket = max(
             [x[1] for x in cache
              if (isinstance(x, list) and x[0] in Function)]
@@ -312,15 +347,15 @@ def calculation_breakdown(cache: list[float | str | list]) -> str:
                             match ParameterCounter(cache[left+1:right]):
                                 case 1:
                                     print(
-                                        "[Syntax Warning]: Function log() got only one parameter, taking 10 as its base")
+                                        "\t[Warn]: Function log() got only one parameter, taking 10 as its base")
                                     log_a = [10]
                                     log_N = cache[left+1:right]
                                 case 2:
-                                    log_a = cache[left+1:cache.index(',')]
-                                    log_N = cache[cache.index(',')+1:right]
+                                    log_a = cache[left+1:cache.index(';')]
+                                    log_N = cache[cache.index(';')+1:right]
                                 case _:
-                                    raise WrongExpression(
-                                        "[Syntax Error]: Too many parameter for log(a,b)")
+                                    raise ExpressionError(
+                                        "Too many parameter for log(a,b)")
                             ans = math.log(calculate(log_N), calculate(log_a))
                         case '(':
                             ans = calculate(cache[left+1:right])
@@ -337,6 +372,7 @@ def calculation_breakdown(cache: list[float | str | list]) -> str:
                     )
                     left, right = [0, 0]
                     i = -1
+                    ShowStep(cache)
                 else:
                     pass
             else:
@@ -345,6 +381,8 @@ def calculation_breakdown(cache: list[float | str | list]) -> str:
     except ValueError:
         # print_exc()
         # Design for func max() to skip no-bracket sequence
+        ShowStep(cache)
+        calculate(cache)
         pass
     return str(cache[0])
 
@@ -411,7 +449,7 @@ if __name__ == '__main__':
             expression = re.sub("[\\s]", '', expression)
             expression = re.sub("[\\[\\{【（]", '(', expression)
             expression = re.sub("[\\]\\}】）]", ')', expression)
-            expression = re.sub("[\\,\\;。，；]", ',', expression)
+            expression = re.sub("[\\,\\;。，；]", ';', expression)
             # Assume that the mode command should act like:
             # MODE:<><mode_name><space|tab><input|none>
             if expression[0: 5].lower() == "mode:":
@@ -429,10 +467,10 @@ if __name__ == '__main__':
                 # 输入主程序，此步获得输入的完整结构信息
                 cache = convert(expression)
 
-                print("==> Steps:")
+                print("\n==> Steps:")
                 ShowStep(cache)
                 if expression.count("=") == 0:
-                    print("The result is: "+calculation_breakdown(cache))
+                    print(f"\nAns={calculation_breakdown(cache)}\n")
                 else:
                     solve(cache)
 
@@ -441,6 +479,7 @@ if __name__ == '__main__':
             print(f"==Undo==> Ans = {Ans}")
         except KeyboardInterrupt:
             exit()
-        except Exception:
-            print_exc()
-            input()
+        except ExpressionError as ex:
+            print(f"\n[Error][Expression]: {ex.msg} ")
+        except UnreachableError as ex:
+            print(f"\n[Error][Unreachable]: {ex.msg}")
