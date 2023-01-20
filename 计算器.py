@@ -6,7 +6,7 @@ Datatime : 2022/12/07
 Author :KJH-x
 '''
 
-
+from traceback import print_exc
 import math
 import sys
 import re
@@ -37,6 +37,21 @@ class UnreachableError(SyntaxError):
     pass
 
 
+class NohistoryError(IndexError):
+    """Pop expression from empty history list
+
+    Args:
+        IndexError (_type_): _description_
+    """
+
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return repr(self.msg)
+    pass
+
+
 def ShowStep(content: list):
     """Show calculate step
 
@@ -49,11 +64,13 @@ def ShowStep(content: list):
             isolateContent[x] = str(isolateContent[x][0])
         else:
             pass
-    # isolateContent = re.sub(".0", '', f"{isolateContent}")
     isolateContent = re.sub(
-        "[\\[\\]\\,\\'\\s]", '',
-        f"{isolateContent}".replace(".0", "")
-    ).replace(";", ",")
+        "[\\s]", '',
+        re.sub(
+            "[\\[\\]\\,\\']", '',
+            f"{isolateContent}".replace(".0,", "")
+        ).replace(";", ",")
+    )
     print(f'\t{isolateContent}')
     return
 
@@ -95,7 +112,7 @@ def isfloat(expression: str) -> bool:
     """Judge if the expression is an acceptble float number
     """
     if expression.count('.') < 2 and expression.count('e') < 2:
-        return expression.replace(".", "").isdigit()
+        return expression.replace('.', '').replace('e', '').isdigit()
     else:
         return False
 
@@ -132,9 +149,9 @@ def assign_class(operator) -> list:
 
 
 def flash(command='part') -> None:
-    global Ans, last, history
+    global ans, last, history
     if command in ['part', 'full']:
-        Ans = 0
+        ans = 0
         last = 0
         if command == 'full':
             history = []
@@ -154,27 +171,19 @@ def convert(expression: str) -> list:
     # 括号优先级计算，左括号加一级，右括号减一级
     # 输入的括号可不在形式上成对，只要左右个数一致即可
     bracketlevel = 0
-    # 输入为空，直接下一轮
-    if expression == "":
-        output("")
-        return []
-    # 输入查询记录
-    elif expression.lower() in ['memory', 'mem']:
-        print(memory)
     # 输入分析：
     while left < len(expression):
-        function = ""
+        number = 0
         if expression[left].isdigit():
             # 过程量记录
             # 调用isfloat函数，把小数吃掉
             for right in range(left+1, len(expression)+1):
-
                 if isfloat(expression[left:right]):
-                    function = float(expression[left:right])
+                    number = expression[left:right]
                 else:
                     right -= 1
                     break
-            cache.append(function)
+            cache.append(float(number))
             # last_type = "number"
             left = right
             continue
@@ -200,16 +209,14 @@ def convert(expression: str) -> list:
         elif expression[left].isalpha():
             # 记录函数
             # 调用isfunction来把一串英文和后随括号给吃掉
+            # 同时还要处理变量
+            function = ''
             for right in range(left+1, len(expression)+1):
-                if isfunction(expression[left:right]):
+                if isfunction(expression[left:right]) and expression[right-1] == '(':
                     function = [expression[left:right], bracketlevel]
-                else:
-                    right -= 1
                     break
-            if function[0][-1] != '(':
-                print(
-                    f"\n[Warn] Skipping incomprehensible '{function[0]}'")
-                left += 1
+                else:
+                    pass
             else:
                 # 如果前面一个是数字，那么是缩写，把没有的乘号补上
                 if len(cache) > 0 and isinstance(cache[-1], float):
@@ -259,6 +266,9 @@ def convert(expression: str) -> list:
 
 
 def calculate(slice: list) -> float:
+    for index in range(len(slice)):
+        if isinstance(slice[index], list) and slice[index][0] in ['(', ')']:
+            slice.pop(index)
     if len(slice) == 1 and isinstance(slice[0], float):
         return slice[0]
     try:
@@ -322,9 +332,10 @@ def calculate(slice: list) -> float:
         raise TypeError
 
 
-def calculation_breakdown(cache: list[float | str | list]) -> str:
+def calculation_breakdown(cache: list) -> float:
     try:
-
+        if len(cache) == 1:
+            return float(cache[0])
         maxbracket = max(
             [x[1] for x in cache
              if (isinstance(x, list) and x[0] in Function)]
@@ -348,15 +359,21 @@ def calculation_breakdown(cache: list[float | str | list]) -> str:
                                 case 1:
                                     print(
                                         "\t[Warn]: Function log() got only one parameter, taking 10 as its base")
-                                    log_a = [10]
+                                    log_a = [10.0]
                                     log_N = cache[left+1:right]
                                 case 2:
-                                    log_a = cache[left+1:cache.index(';')]
-                                    log_N = cache[cache.index(';')+1:right]
+                                    log_a = cache[left + 1:
+                                                  cache[left+1:right].index(';')+left+1]
+                                    log_N = cache[cache[left+1:right].index(';')+left+2:
+                                                  right+1]
                                 case _:
                                     raise ExpressionError(
-                                        "Too many parameter for log(a,b)")
-                            ans = math.log(calculate(log_N), calculate(log_a))
+                                        "Too many parameter for log(a,b)"
+                                    )
+                            ans = math.log(
+                                calculation_breakdown(log_N),
+                                calculation_breakdown(log_a)
+                            )
                         case '(':
                             ans = calculate(cache[left+1:right])
                         case _:
@@ -381,10 +398,10 @@ def calculation_breakdown(cache: list[float | str | list]) -> str:
     except ValueError:
         # print_exc()
         # Design for func max() to skip no-bracket sequence
-        ShowStep(cache)
+        ShowStep(cache) if len(cache) > 2 else 1
         calculate(cache)
         pass
-    return str(cache[0])
+    return float(cache[0])
 
 
 def solve(cache: list) -> float:
@@ -432,7 +449,8 @@ level = [
 ]
 
 
-Ans = 0
+variable = dict()
+variable['ans'] = 0
 last = 0
 history = []
 
@@ -445,13 +463,16 @@ if __name__ == '__main__':
     while True:
         try:
             # 输入，去除空格和前后空白符，替换括号
-            expression = input("Basic> ")
+            expression = input("Basic> ").lower()
             expression = re.sub("[\\s]", '', expression)
             expression = re.sub("[\\[\\{【（]", '(', expression)
             expression = re.sub("[\\]\\}】）]", ')', expression)
             expression = re.sub("[\\,\\;。，；]", ';', expression)
             # Assume that the mode command should act like:
             # MODE:<><mode_name><space|tab><input|none>
+            if expression[0] == '+':
+                expression = 'ans'+expression
+
             if expression[0: 5].lower() == "mode:":
                 i = 0
                 for i in range(5, len(expression)):
@@ -466,20 +487,36 @@ if __name__ == '__main__':
             else:
                 # 输入主程序，此步获得输入的完整结构信息
                 cache = convert(expression)
-
-                print("\n==> Steps:")
-                ShowStep(cache)
-                if expression.count("=") == 0:
-                    print(f"\nAns={calculation_breakdown(cache)}\n")
+                if cache == [] or [x for x in cache if isinstance(x, float)] == []:
+                    pass
                 else:
-                    solve(cache)
+                    print("\n==> Steps:")
+                    ShowStep(cache)
+                    history_cache = copy.deepcopy(cache)
+                    history.append(history_cache)
+                    del history_cache
+                    if expression.count("=") == 0:
+                        variable['ans'] = calculation_breakdown(cache)
+                        print(f"\nAns={variable['ans']}\n")
+                    else:
+                        solve(cache)
 
         except EOFError:
-            Ans = history.pop()
-            print(f"==Undo==> Ans = {Ans}")
+            try:
+                variable['ans'] = history.pop()
+                print(f"==Undo==> Ans = {variable['ans']}")
+            except IndexError:
+                try:
+                    raise NohistoryError("Empty History")
+                except NohistoryError as ex:
+                    print(f"\n[Warn][History]: {ex.msg}")
         except KeyboardInterrupt:
             exit()
         except ExpressionError as ex:
             print(f"\n[Error][Expression]: {ex.msg} ")
         except UnreachableError as ex:
             print(f"\n[Error][Unreachable]: {ex.msg}")
+
+        except Exception:
+            if input("[Exception] type 1 to see detail") == '1':
+                print_exc()
