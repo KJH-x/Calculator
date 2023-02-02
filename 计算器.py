@@ -211,7 +211,6 @@ def convert(expression: str) -> list:
                     if mode != 'set_var':
                         try:
                             cache.append(var_dict[variable])
-                            right if right else right
                         except KeyError:
                             var_dict[variable] = 0.0
                             raise ExpressionError(
@@ -282,6 +281,10 @@ def calculate(slice: list) -> float:
                             case '+':
                                 slice[i+1] = slice[i-1] + slice[i+1]
                             case '-':
+                                if i-1 < 0 or isinstance(slice[i-1], float):
+                                    # slice[i+1] = - slice[i+1]
+                                    slice.insert(i, 0.0)
+                                    i += 1
                                 slice[i+1] = slice[i-1] - slice[i+1]
                             case '*':
                                 slice[i+1] = slice[i-1] * slice[i+1]
@@ -306,9 +309,9 @@ def calculate(slice: list) -> float:
                                 raise UnreachableError(
                                     f"Unknown operator: {x[0]}"
                                 )
-                    except TypeError:
+                    except TypeError as e:
                         raise ExpressionError(
-                            f"Adjacent operator, check expression"
+                            f"Adjacent operator, check expression: \n{e}"
                         )
                     slice.pop(i-1)
                     slice.pop(i-1)
@@ -351,11 +354,12 @@ def calculation_breakdown(cache: list) -> float:
                 elif x[0] == ')':
                     right = i
                     ans = 0
+                    paraCnt = ParameterCounter(cache[left+1:right])
                     match func:
                         case 'log(':
                             # in math module: 真数在前，底数在后
                             # in use: 习惯底数跟在log后
-                            match ParameterCounter(cache[left+1:right]):
+                            match paraCnt:
                                 case 1:
                                     print(
                                         "\t[Warn]: Function log() got only one parameter, taking 10 as its base")
@@ -378,6 +382,187 @@ def calculation_breakdown(cache: list) -> float:
                                 raise ExpressionError(
                                     f"log(1,x)"
                                 )
+                        case 'ln(':
+                            match paraCnt:
+                                case 1:
+                                    log_N = cache[left+1:right]
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for ln(a)"
+                                    )
+                            try:
+                                ans = math.log(
+                                    calculate(log_N), math.e
+                                )
+                            except ZeroDivisionError:
+                                raise ExpressionError(
+                                    f"log(1,x)"
+                                )
+                        case 'floor(':
+                            match paraCnt:
+                                case 1:
+                                    ans = math.floor(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for floor(a)"
+                                    )
+                        case 'ceil(':
+                            match paraCnt:
+                                case 1:
+                                    ans = math.ceil(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for ceil(a)"
+                                    )
+                        case 'abs(':
+                            match paraCnt:
+                                case 1:
+                                    ans = abs(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for abs(a)"
+                                    )
+                        case 'sin(':
+                            match paraCnt:
+                                case 1:
+                                    ans = math.sin(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for sin(a)"
+                                    )
+                        case 'cos(':
+                            match paraCnt:
+                                case 1:
+                                    ans = math.cos(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for cos(a)"
+                                    )
+                        case 'tan(':
+                            match paraCnt:
+                                case 1:
+                                    ans = math.tan(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for tan(a)"
+                                    )
+                        case 'arcsin(' | 'asin(':
+                            match paraCnt:
+                                case 1:
+                                    try:
+                                        ans = math.asin(
+                                            calculate(cache[left+1:right])
+                                        )
+                                    except ValueError:
+                                        raise ExpressionError("Out of domain")
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for arcsin(a)/asin(a)"
+                                    )
+                        case 'arccos(' | 'acos(':
+                            match paraCnt:
+                                case 1:
+                                    try:
+                                        ans = math.acos(
+                                            calculate(cache[left+1:right])
+                                        )
+                                    except ValueError:
+                                        raise ExpressionError("Out of domain")
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for arccos(a)/acos(a)"
+                                    )
+                        case 'arctan(' | 'atan(':
+                            match paraCnt:
+                                case 1:
+                                    try:
+                                        ans = math.atan(
+                                            calculate(cache[left+1:right])
+                                        )
+                                    except ValueError:
+                                        raise ExpressionError("Out of domain")
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for arctan(a)/atan(a)"
+                                    )
+                        case 'sinh(':
+                            match paraCnt:
+                                case 1:
+                                    ans = math.sinh(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for sinh(a)"
+                                    )
+                        case 'cosh(':
+                            match paraCnt:
+                                case 1:
+                                    ans = math.cosh(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for cosh(a)"
+                                    )
+                        case 'tanh(':
+                            match paraCnt:
+                                case 1:
+                                    ans = math.tanh(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for tanh(a)"
+                                    )
+                        case 'arcsinh(' | 'asinh(':
+                            match paraCnt:
+                                case 1:
+                                    ans = math.asinh(
+                                        calculate(cache[left+1:right])
+                                    )
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for arcsinh(a)/asinh(a)"
+                                    )
+                        case 'arccosh(' | 'acosh(':
+                            match paraCnt:
+                                case 1:
+                                    try:
+                                        ans = math.acosh(
+                                            calculate(cache[left+1:right])
+                                        )
+                                    except ValueError:
+                                        raise ExpressionError("Out of domain")
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for arccosh(a)/acosh(a)"
+                                    )
+                        case 'arctanh(' | 'atanh(':
+                            match paraCnt:
+                                case 1:
+                                    try:
+                                        ans = math.atanh(
+                                            calculate(cache[left+1:right])
+                                        )
+                                    except ValueError:
+                                        raise ExpressionError("Out of domain")
+                                case _:
+                                    raise ExpressionError(
+                                        "Too many parameter for arctanh(a)/atanh(a)"
+                                    )
                         case '(':
                             ans = calculate(cache[left+1:right])
                         case _:
@@ -399,7 +584,7 @@ def calculation_breakdown(cache: list) -> float:
             else:
                 pass
             i += 1
-    except ValueError:
+    except ValueError as ex:
         # print_exc()
         # Design for func max() to skip no-bracket sequence
         ShowStep(cache) if len(cache) > 2 else 1
@@ -437,7 +622,8 @@ rightclass = ['!']
 functions = [
     'log(', 'ln(',
     'floor(', 'ceil(', 'rand(', 'abs(',
-    'sin(', 'cos(', 'tan(', 'arcsin(', 'arccos(', 'arctan(',
+    'sin(', 'cos(', 'tan(', 'arcsin(', 'arccos(', 'arctan(', 'asin(', 'acos(', 'atan(',
+    'sinh(', 'cosh(', 'tanh(', 'arcsinh(', 'arccosh(', 'arctanh(', 'asinh(', 'acosh(', 'atanh(',
     '('
 ]
 # why not consider the right bracket'('as a function
@@ -449,10 +635,17 @@ level = [
     ['A', 'P', 'C'],
     ['(', ')']
 ]
-
+default_msg = "\
+  Defaults:\
+  [1] Radian == 3.141...         1°  (Degree)\n\
+      Set var radian to 1        1pi (Radian)\n\
+      or set to 200              1g  (Gradian)\n\
+"
 
 var_dict = dict()
 var_dict['ans'] = 0
+var_dict['radian'] = math.pi
+var_dict['pi'] = math.pi
 last = 0
 history = []
 
@@ -462,45 +655,45 @@ gt1 = "{1,}"
 eq1 = "{1}"
 
 # pat_func = f"^[^0-9 \\+\\-\\*\\/\\%\\= ;\\)]{0,}[^\\+\\-\\*\\/\\%\\= ;\\)\\(]{0,}[\\()]$"
-pat_func = f"^[^0-9{keyword}]{gt0}[^{keyword}\\(]{gt0}[\\()]$"
+pat_func = f"^[^0-9{keyword}]{gt0}[^{keyword}\\(]{gt0}[\\(]$"
 # 函数的正则模式：
 #    开头： 非（数字，算符，分隔符，右括号）
 #    中间：任意长度（大于等于0）的 非（算符，分隔符，右括号）
 #    结尾：右括号
-pat_var = f"^[^0-9{keyword}]{eq1}[^{keyword}\\(]{gt0}$"
+pat_var = f"^[^0-9{keyword}]{eq1}[^{keyword}\\(\\)]{gt0}$"
 # 变量的正则模式：
 #    开头： 非（数字，算符，分隔符，右括号）
 #    中间：任意长度（大于等于0）的 非（算符，分隔符，右括号）
 #    结尾：非右括号，通过先判断是否为函数
 pattern = [
     [
-        "(^[0-9]{1,}([\\.][0-9]{0,}){0,1}$)",
+        "[\\-]{0,}(^[0-9]{1,}([\\.][0-9]{0,}){0,1}$)",
         # 'xx' 'xx.xx' 'xx.'
-        "^[\\.][0-9]{1,}$",
+        "^[\\-]{0,}[\\.][0-9]{1,}$",
         # '.xx'
     ],
     [
-        "^[0-9]{1,}([.\\][0-9]{0,}){0,}e(\\+|\\-){0,1}[0-9]{1,}$",
+        "^[\\-]{0,}[0-9]{1,}([.\\][0-9]{0,}){0,}e(\\+|\\-){0,1}[0-9]{1,}$",
         # 'xxe+-xx', 'xx.e+-xx', 'xx.xxe+-xx ...etc'
-        "^[\\.][0-9]{1,}e(\\+|\\-){0,1}[0-9]{1,}$",
+        "^[\\-]{0,}[\\.][0-9]{1,}e(\\+|\\-){0,1}[0-9]{1,}$",
         # '.xxe+-xx ...etc'
     ],
     [
-        "^[0-9]{1,}([.\\][0-9]{0,}){0,}e",
+        "^[\\-]{0,}[0-9]{1,}([.\\][0-9]{0,}){0,}e",
         # 'xx.xxe... insufficient'
-        "^[\\.][0-9]{1,}e",
+        "^[\\-]{0,}[\\.][0-9]{1,}e",
         # '.xxe... insufficient'
     ],
     [
-        "^[0-9]{1,}([.\\][0-9]{0,}){0,}e(\\+|\\-){0,1}[0-9]{1,}.{1,}",
+        "^[\\-]{0,}[0-9]{1,}([.\\][0-9]{0,}){0,}e(\\+|\\-){0,1}[0-9]{1,}.{1,}",
         # 'xx.xxe+-xx?... overflow'
-        "^[\\.][0-9]{1,}e(\\+|\\-){0,1}[0-9]{1,}.{1,}",
+        "^[\\-]{0,}[\\.][0-9]{1,}e(\\+|\\-){0,1}[0-9]{1,}.{1,}",
         # '.xxe+-xx?... overflow'
     ]
 ]
 
 if __name__ == '__main__':
-
+    print(default_msg)
     memory = []
     last_type = ""
     flash()
@@ -511,7 +704,8 @@ if __name__ == '__main__':
             # expression = re.sub("[\\s]", '', expression)
             expression = re.sub("[\\[\\{【（]", '(', expression)
             expression = re.sub("[\\]\\}】）]", ')', expression)
-            expression = re.sub("[\\,\\;。，；]", ';', expression)
+            expression = re.sub("[\\,\\;，；]", ';', expression)
+            expression = re.sub("。", '.', expression)
             # Assume that the mode command should act like:
             # MODE:<><mode_name><space|tab><input|none>
             if expression[0] == '+':

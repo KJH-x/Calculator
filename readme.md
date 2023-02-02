@@ -3,6 +3,11 @@
 - multi-parameter handling 
 - more input format
 
+
+## Problems not planned to fix
+- sin(pi)=1.2246467991473532e-16
+    - Cause by math module, avoid calculate around this 
+
 ## Usage
 Example:
 ``` 1+2-3*4/5log(6,7^8(9+10))```
