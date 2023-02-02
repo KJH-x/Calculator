@@ -64,32 +64,12 @@ def ShowStep(content: list):
             isolateContent[x] = str(isolateContent[x][0])
         else:
             pass
-    isolateContent = re.sub(
-        "[\\s]", '',
-        re.sub(
-            "[\\[\\]\\,\\']", '',
-            f"{isolateContent}".replace(".0,", "")
-        ).replace(";", ",")
-    )
+    isolateContent = re.sub("(\\.0[\\,\\]]{1})", '', f"{isolateContent}")
+    isolateContent = re.sub("[\\[\\]\\,\\'\\s]", '', isolateContent)
+    isolateContent = re.sub("\\;", ',', isolateContent)
+
     print(f'\t{isolateContent}')
     return
-
-
-def output(result: ...) -> None:
-    """[Deprecated] Print someting formatted
-
-    Args:
-        result (str or any): things to print
-    """
-    # 此函数功能目前不佳，在好的替代方案发现之前
-    # 新增的输出内容，直接用print
-    if type(result) == "<class 'str'>":
-        print(f"==> {result}")
-    else:
-        # print("---Long Result:---start---")
-        print(result)
-        # print("---Long Result:--- end ---")
-    history.append(result)
 
 
 def ParameterCounter(sequence: list) -> int:
@@ -108,27 +88,11 @@ def ParameterCounter(sequence: list) -> int:
     return count
 
 
-def isfloat(expression: str) -> bool:
-    """Judge if the expression is an acceptble float number
-    """
-    if expression.count('.') < 2 and expression.count('e') < 2:
-        return expression.replace('.', '').replace('e', '').isdigit()
-    else:
-        return False
-
-
 def iscomplex(expression: str) -> bool:
     """Judge if the expression is an acceptble complex number
     """
     # new
     return False
-
-
-def isfunction(expression: str) -> bool:
-    """Judge if the expression is an acceptble function
-    """
-    expression = re.sub('[(]', "", expression)
-    return expression.isalpha()
 
 
 def assign_class(operator) -> list:
@@ -167,6 +131,7 @@ def convert(expression: str) -> list:
         list: cache: made up of floats operator and function
     """
     cache = []
+    mode = ''
     left, right = [0, 0]
     # 括号优先级计算，左括号加一级，右括号减一级
     # 输入的括号可不在形式上成对，只要左右个数一致即可
@@ -174,15 +139,29 @@ def convert(expression: str) -> list:
     # 输入分析：
     while left < len(expression):
         number = 0
-        if expression[left].isdigit():
+        if re.match("[0-9\\.]", expression[left]):
             # 过程量记录
-            # 调用isfloat函数，把小数吃掉
             for right in range(left+1, len(expression)+1):
-                if isfloat(expression[left:right]):
-                    number = expression[left:right]
+                test = expression[left:right]
+                if re.match(pattern[0][0], test) \
+                        or re.match(pattern[0][1], test)\
+                        or re.match(pattern[1][0], test)\
+                        or re.match(pattern[1][1], test):
+                    number = float(test)
+                elif test == '.':
+                    pass
+                elif re.match(pattern[2][0], test)\
+                        or re.match(pattern[2][1], test):
+                    if re.match(pattern[3][0], test)\
+                            or re.match(pattern[3][1], test):
+                        right -= 1
+                        break
+                    else:
+                        pass
                 else:
                     right -= 1
                     break
+
             cache.append(float(number))
             # last_type = "number"
             left = right
@@ -206,36 +185,51 @@ def convert(expression: str) -> list:
             left += 1
             continue
 
-        elif expression[left].isalpha():
-            # 记录函数
-            # 调用isfunction来把一串英文和后随括号给吃掉
+        elif re.match(f"[^0-9{keyword}]", expression[left]):
+            # 记录函数、变量、左括号
             # 同时还要处理变量
+            test = ''
             function = ''
+            variable = ''
             for right in range(left+1, len(expression)+1):
-                if isfunction(expression[left:right]) and expression[right-1] == '(':
-                    function = [expression[left:right], bracketlevel]
+                test = str(expression[left:right])
+                if re.match(pat_func, test):
+                    function = test
                     break
+                elif re.match(pat_var, test):
+                    variable = test
                 else:
-                    pass
-            else:
-                # 如果前面一个是数字，那么是缩写，把没有的乘号补上
-                if len(cache) > 0 and isinstance(cache[-1], float):
-                    cache.append(assign_class('*'))
-                # 记录的时候记录函数名称
-                cache.append(function)
-                # last_type = function
-                left = right
-                bracketlevel += 1
-            continue
+                    right -= 1
+                    break
 
-        elif expression[left] == '(':
-            # 如果前一个是数字，那么是缩写，把没有的乘号补上
+            # 如果前面一个是数字，那么是缩写，把没有的乘号补上
             if len(cache) > 0 and isinstance(cache[-1], float):
                 cache.append(assign_class('*'))
-            # 遇到左侧等号，处理后加一级
-            cache.append([str(expression)[left], bracketlevel])
-            left += 1
-            bracketlevel += 1
+
+            if function == '':
+                if variable != 'set':
+                    if mode != 'set_var':
+                        try:
+                            cache.append(var_dict[variable])
+                            right if right else right
+                        except KeyError:
+                            var_dict[variable] = 0.0
+                            raise ExpressionError(
+                                f"Unknown varibale {variable}, created"
+                            )
+                    else:
+                        cache.append(variable)
+                        mode = ''
+                else:
+                    mode = 'set_var'
+                    right += 1
+
+            else:
+                # 记录的时候记录函数名称
+                cache.append([function, bracketlevel])
+                # last_type = function
+                bracketlevel += 1
+            left = right
             continue
 
         elif expression[left] == ')':
@@ -245,15 +239,16 @@ def convert(expression: str) -> list:
             left += 1
             continue
 
-        elif expression[left] == ';':
+        elif expression[left] in [';', '=']:
             # 多个参数不好处理，由拆分函数执行任务分配，逗号照吃
-            cache.append(';')
+            # 等号作判断用，照吃
+            cache.append(expression[left])
             left += 1
             continue
 
         else:
             raise UnreachableError(
-                f"cannot reslove in cache:{left}\n\tcache:\n\t{cache}"
+                f"cannot reslove in expression:{left}\n\texpression:\n\t{expression}"
             )
 
     if bracketlevel != 0:
@@ -282,34 +277,39 @@ def calculate(slice: list) -> float:
                 x = slice[i]
 
                 if isinstance(x, list) and x[1] == maxlevel and x[0] in midclass:
-                    match x[0]:
-                        case '+':
-                            slice[i+1] = slice[i-1] + slice[i+1]
-                        case '-':
-                            slice[i+1] = slice[i-1] - slice[i+1]
-                        case '*':
-                            slice[i+1] = slice[i-1] * slice[i+1]
-                        case '/':
-                            try:
-                                slice[i+1] = slice[i-1] / slice[i+1]
-                            except ZeroDivisionError:
-                                raise ExpressionError("Devide by 0")
-                        case '%':
-                            slice[i+1] = slice[i -
-                                               1] % slice[i+1]
-                        case '^':
-                            slice[i+1] = pow(slice[i-1],
-                                             slice[i+1])
-                        case 'A', 'P':
-                            slice[i+1] = math.perm(int(slice[i-1]),
-                                                   int(slice[i+1]))
-                        case 'C':
-                            slice[i+1] = math.comb(int(slice[i-1]),
-                                                   int(slice[i+1]))
-                        case _:
-                            raise UnreachableError(
-                                f"Unknown operator: {x[0]}"
-                            )
+                    try:
+                        match x[0]:
+                            case '+':
+                                slice[i+1] = slice[i-1] + slice[i+1]
+                            case '-':
+                                slice[i+1] = slice[i-1] - slice[i+1]
+                            case '*':
+                                slice[i+1] = slice[i-1] * slice[i+1]
+                            case '/':
+                                try:
+                                    slice[i+1] = slice[i-1] / slice[i+1]
+                                except ZeroDivisionError:
+                                    raise ExpressionError("Devide by 0")
+                            case '%':
+                                slice[i+1] = slice[i -
+                                                   1] % slice[i+1]
+                            case '^':
+                                slice[i+1] = pow(slice[i-1],
+                                                 slice[i+1])
+                            case 'A', 'P':
+                                slice[i+1] = math.perm(int(slice[i-1]),
+                                                       int(slice[i+1]))
+                            case 'C':
+                                slice[i+1] = math.comb(int(slice[i-1]),
+                                                       int(slice[i+1]))
+                            case _:
+                                raise UnreachableError(
+                                    f"Unknown operator: {x[0]}"
+                                )
+                    except TypeError:
+                        raise ExpressionError(
+                            f"Adjacent operator, check expression"
+                        )
                     slice.pop(i-1)
                     slice.pop(i-1)
                 else:
@@ -338,7 +338,7 @@ def calculation_breakdown(cache: list) -> float:
             return float(cache[0])
         maxbracket = max(
             [x[1] for x in cache
-             if (isinstance(x, list) and x[0] in Function)]
+             if (isinstance(x, list) and x[0] in functions)]
         )
         left, right, i = [0, 0, 0]
         func = ""
@@ -370,10 +370,14 @@ def calculation_breakdown(cache: list) -> float:
                                     raise ExpressionError(
                                         "Too many parameter for log(a,b)"
                                     )
-                            ans = math.log(
-                                calculation_breakdown(log_N),
-                                calculation_breakdown(log_a)
-                            )
+                            try:
+                                ans = math.log(
+                                    calculate(log_N), calculate(log_a)
+                                )
+                            except ZeroDivisionError:
+                                raise ExpressionError(
+                                    f"log(1,x)"
+                                )
                         case '(':
                             ans = calculate(cache[left+1:right])
                         case _:
@@ -385,7 +389,7 @@ def calculation_breakdown(cache: list) -> float:
                     cache[left] = ans
                     maxbracket = max(
                         [x[1] for x in cache
-                         if (isinstance(x, list) and x[0] in Function)]
+                         if (isinstance(x, list) and x[0] in functions)]
                     )
                     left, right = [0, 0]
                     i = -1
@@ -430,9 +434,7 @@ midclass = ['+', '-', '*', '/', '%', '^', 'A', 'P', 'C',]
 rightclass = ['!']
 # changelog: []will no longer be used as general brackets
 # changelog: use regex to normalize all bracket
-# Lbracket = ['(']
-# Rbracket = [')']
-Function = [
+functions = [
     'log(', 'ln(',
     'floor(', 'ceil(', 'rand(', 'abs(',
     'sin(', 'cos(', 'tan(', 'arcsin(', 'arccos(', 'arctan(',
@@ -449,11 +451,53 @@ level = [
 ]
 
 
-variable = dict()
-variable['ans'] = 0
+var_dict = dict()
+var_dict['ans'] = 0
 last = 0
 history = []
 
+keyword = "\\+\\-\\*\\/\\%\\= \\;\\) \\."
+gt0 = "{0,}"
+gt1 = "{1,}"
+eq1 = "{1}"
+
+# pat_func = f"^[^0-9 \\+\\-\\*\\/\\%\\= ;\\)]{0,}[^\\+\\-\\*\\/\\%\\= ;\\)\\(]{0,}[\\()]$"
+pat_func = f"^[^0-9{keyword}]{gt0}[^{keyword}\\(]{gt0}[\\()]$"
+# 函数的正则模式：
+#    开头： 非（数字，算符，分隔符，右括号）
+#    中间：任意长度（大于等于0）的 非（算符，分隔符，右括号）
+#    结尾：右括号
+pat_var = f"^[^0-9{keyword}]{eq1}[^{keyword}\\(]{gt0}$"
+# 变量的正则模式：
+#    开头： 非（数字，算符，分隔符，右括号）
+#    中间：任意长度（大于等于0）的 非（算符，分隔符，右括号）
+#    结尾：非右括号，通过先判断是否为函数
+pattern = [
+    [
+        "(^[0-9]{1,}([\\.][0-9]{0,}){0,1}$)",
+        # 'xx' 'xx.xx' 'xx.'
+        "^[\\.][0-9]{1,}$",
+        # '.xx'
+    ],
+    [
+        "^[0-9]{1,}([.\\][0-9]{0,}){0,}e(\\+|\\-){0,1}[0-9]{1,}$",
+        # 'xxe+-xx', 'xx.e+-xx', 'xx.xxe+-xx ...etc'
+        "^[\\.][0-9]{1,}e(\\+|\\-){0,1}[0-9]{1,}$",
+        # '.xxe+-xx ...etc'
+    ],
+    [
+        "^[0-9]{1,}([.\\][0-9]{0,}){0,}e",
+        # 'xx.xxe... insufficient'
+        "^[\\.][0-9]{1,}e",
+        # '.xxe... insufficient'
+    ],
+    [
+        "^[0-9]{1,}([.\\][0-9]{0,}){0,}e(\\+|\\-){0,1}[0-9]{1,}.{1,}",
+        # 'xx.xxe+-xx?... overflow'
+        "^[\\.][0-9]{1,}e(\\+|\\-){0,1}[0-9]{1,}.{1,}",
+        # '.xxe+-xx?... overflow'
+    ]
+]
 
 if __name__ == '__main__':
 
@@ -463,8 +507,8 @@ if __name__ == '__main__':
     while True:
         try:
             # 输入，去除空格和前后空白符，替换括号
-            expression = input("Basic> ").lower()
-            expression = re.sub("[\\s]", '', expression)
+            expression = input("Basic> ").lower().strip()
+            # expression = re.sub("[\\s]", '', expression)
             expression = re.sub("[\\[\\{【（]", '(', expression)
             expression = re.sub("[\\]\\}】）]", ')', expression)
             expression = re.sub("[\\,\\;。，；]", ';', expression)
@@ -473,7 +517,7 @@ if __name__ == '__main__':
             if expression[0] == '+':
                 expression = 'ans'+expression
 
-            if expression[0: 5].lower() == "mode:":
+            if expression[0:5].lower() == "mode:":
                 i = 0
                 for i in range(5, len(expression)):
                     if expression[i] in [' ', '\t']:
@@ -484,27 +528,45 @@ if __name__ == '__main__':
                     special_mode(mode, "")
                 else:
                     special_mode(mode, expression[i:].lower())
+            elif expression[0:3] == 'set':
+                expression = 'set '+re.sub("[\\s]", '', expression[3:])
+                cache = convert(expression)
+                try:
+                    if len(cache[cache.index('=')+1:]) > 1:
+                        print("\n==> Steps:")
+                        ShowStep(cache)
+                    var_value = calculation_breakdown(
+                        cache[cache.index('=')+1:])
+                    var_dict[cache[0]] = var_value
+                    print(f"\n[Info] Variable {cache[0]} set to {var_value}\n")
+                except ValueError:
+                    raise ExpressionError(
+                        f"No '=' in assignment syntax"
+                    )
+                history.append(cache)
             else:
+                expression = re.sub("[\\s]", '', expression)
                 # 输入主程序，此步获得输入的完整结构信息
                 cache = convert(expression)
-                if cache == [] or [x for x in cache if isinstance(x, float)] == []:
+                if [x for x in cache if isinstance(x, float)] == []:
                     pass
                 else:
-                    print("\n==> Steps:")
-                    ShowStep(cache)
+                    if len(cache) > 1:
+                        print("\n==> Steps:")
+                        ShowStep(cache)
                     history_cache = copy.deepcopy(cache)
                     history.append(history_cache)
                     del history_cache
                     if expression.count("=") == 0:
-                        variable['ans'] = calculation_breakdown(cache)
-                        print(f"\nAns={variable['ans']}\n")
+                        var_dict['ans'] = calculation_breakdown(cache)
+                        print(f"\nAns={var_dict['ans']}\n")
                     else:
                         solve(cache)
 
         except EOFError:
             try:
-                variable['ans'] = history.pop()
-                print(f"==Undo==> Ans = {variable['ans']}")
+                var_dict['ans'] = history.pop()
+                print(f"==Undo==> Ans = {var_dict['ans']}")
             except IndexError:
                 try:
                     raise NohistoryError("Empty History")
