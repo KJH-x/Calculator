@@ -58,8 +58,8 @@ def ShowStep(content: list):
     Args:
         content (list): cache sequence
     """
-    isolateContent = copy.deepcopy(content)
-    for x in range(len(isolateContent)):
+
+    for x in range(len(isolateContent := copy.deepcopy(content))):
         if isinstance(isolateContent[x], list):
             isolateContent[x] = str(isolateContent[x][0])
         else:
@@ -142,8 +142,7 @@ def convert(expression: str) -> list:
         if re.match("[0-9\\.]", expression[left]):
             # 过程量记录
             for right in range(left+1, len(expression)+1):
-                test = expression[left:right]
-                if re.match(pattern[0][0], test) \
+                if re.match(pattern[0][0], test := expression[left:right]) \
                         or re.match(pattern[0][1], test)\
                         or re.match(pattern[1][0], test)\
                         or re.match(pattern[1][1], test):
@@ -192,8 +191,7 @@ def convert(expression: str) -> list:
             function = ''
             variable = ''
             for right in range(left+1, len(expression)+1):
-                test = str(expression[left:right])
-                if re.match(pat_func, test):
+                if re.match(pat_func, test := str(expression[left:right])):
                     function = test
                     break
                 elif re.match(pat_var, test):
@@ -281,7 +279,7 @@ def calculate(slice: list) -> float:
                             case '+':
                                 slice[i+1] = slice[i-1] + slice[i+1]
                             case '-':
-                                if i-1 < 0 or isinstance(slice[i-1], float):
+                                if i-1 < 0 or not isinstance(slice[i-1], float):
                                     # slice[i+1] = - slice[i+1]
                                     slice.insert(i, 0.0)
                                     i += 1
@@ -692,7 +690,7 @@ pattern = [
     ]
 ]
 
-if __name__ == '__main__':
+def main()->None:
     print(default_msg)
     memory = []
     last_type = ""
@@ -711,7 +709,7 @@ if __name__ == '__main__':
             if expression[0] == '+':
                 expression = 'ans'+expression
 
-            if expression[0:5].lower() == "mode:":
+            elif expression[0:5].lower() == "mode:":
                 i = 0
                 for i in range(5, len(expression)):
                     if expression[i] in [' ', '\t']:
@@ -722,6 +720,7 @@ if __name__ == '__main__':
                     special_mode(mode, "")
                 else:
                     special_mode(mode, expression[i:].lower())
+
             elif expression[0:3] == 'set':
                 expression = 'set '+re.sub("[\\s]", '', expression[3:])
                 cache = convert(expression)
@@ -738,6 +737,7 @@ if __name__ == '__main__':
                         f"No '=' in assignment syntax"
                     )
                 history.append(cache)
+
             else:
                 expression = re.sub("[\\s]", '', expression)
                 # 输入主程序，此步获得输入的完整结构信息
@@ -776,3 +776,7 @@ if __name__ == '__main__':
         except Exception:
             if input("[Exception] type 1 to see detail") == '1':
                 print_exc()
+
+
+if __name__ == '__main__':
+    main()
